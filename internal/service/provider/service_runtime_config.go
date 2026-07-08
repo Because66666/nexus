@@ -113,7 +113,16 @@ func (s *Service) runtimeConfigFromTarget(
 	runtimeKind string,
 ) (*clientopts.RuntimeConfig, error) {
 	if target == nil {
-		return nil, errors.New("未配置默认模型，请先到 Settings 选择默认模型")
+		// target 为空时尝试解析默认模型配置，避免直接报错
+		resolved, err := s.defaultRuntimeSelectionForRuntime(ctx, runtimeKind)
+		if err != nil {
+			return nil, err
+		}
+		if resolved == nil {
+			return nil, errors.New("未配置默认模型，请先到 Settings 或者 智能体/简介/身份/模型 中选择模型")
+		}
+		target = &resolved.provider
+		targetModel = resolved.model.ModelID
 	}
 	if !target.Enabled {
 		return nil, fmt.Errorf("provider=%s 已禁用", target.Provider)
