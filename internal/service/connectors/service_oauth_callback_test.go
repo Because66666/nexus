@@ -87,6 +87,11 @@ func TestServiceOAuthCallbackWithoutRequestOwnerUsesStoredStateOwner(t *testing.
 
 	ctx := context.Background()
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if strings.HasSuffix(request.URL.Path, "/tenant_access_token/internal") {
+			// SaveOAuthClientConfig 会触发 tenant_access_token 获取
+			_, _ = writer.Write([]byte(`{"code":0,"msg":"ok","tenant_access_token":"setup-tenant-token","expire":7200}`))
+			return
+		}
 		if !strings.Contains(request.Header.Get("Content-Type"), "application/json") {
 			t.Fatalf("飞书 token 请求应使用 JSON: %s", request.Header.Get("Content-Type"))
 		}
@@ -102,6 +107,7 @@ func TestServiceOAuthCallbackWithoutRequestOwnerUsesStoredStateOwner(t *testing.
 	}))
 	defer server.Close()
 
+	t.Setenv("NEXUS_CONNECTOR_FEISHU_DOCX_API_BASE_URL", server.URL)
 	t.Setenv("NEXUS_CONNECTOR_FEISHU_DOCX_TOKEN_URL", server.URL)
 	service := NewService(cfg, db)
 	service.httpClient = server.Client()

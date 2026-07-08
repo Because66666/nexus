@@ -89,7 +89,7 @@ func (s *Service) connectionSnapshotFromRecord(record connectionRecord) (*connec
 	if err != nil {
 		return nil, err
 	}
-	token := connectorFirstNonEmpty(parsed["access_token"], parsed["token"], parsed["bearer_token"], parsed["api_key"])
+	token := connectorFirstNonEmpty(parsed["tenant_access_token"], parsed["access_token"], parsed["token"], parsed["bearer_token"], parsed["api_key"])
 	if token == "" {
 		return nil, errors.New("connector 未获取到 access token")
 	}

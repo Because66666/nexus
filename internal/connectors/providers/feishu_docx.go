@@ -11,12 +11,15 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
-	defaultFeishuDocxAuthURL  = "https://accounts.feishu.cn/open-apis/authen/v1/authorize"
-	defaultFeishuDocxTokenURL = "https://open.feishu.cn/open-apis/authen/v2/oauth/token"
-	defaultFeishuDocxAPIURL   = "https://open.feishu.cn"
+	defaultFeishuDocxAuthURL         = "https://accounts.feishu.cn/open-apis/authen/v1/authorize"
+	defaultFeishuDocxTokenURL        = "https://open.feishu.cn/open-apis/authen/v2/oauth/token"
+	defaultFeishuDocxAPIURL          = "https://open.feishu.cn"
+	defaultFeishuTenantTokenEndpoint = "/open-apis/auth/v3/tenant_access_token/internal"
+	feishuTokenExpireBuffer          = 300 // 提前 300 秒视为过期，避免边界情况
 )
 
 type feishuDocxProvider struct {
@@ -83,6 +86,67 @@ func (p feishuDocxProvider) RefreshToken(ctx context.Context, httpClient *http.C
 		"refresh_token": req.RefreshToken,
 	}
 	return postFeishuDocxTokenJSON(ctx, httpClient, p.tokenURL, payload)
+}
+
+// tenantTokenEnvelope 是飞书 tenant_access_token 响应结构。
+type tenantTokenEnvelope struct {
+	Code              int    `json:"code"`
+	Msg               string `json:"msg"`
+	TenantAccessToken string `json:"tenant_access_token"`
+	Expire            int    `json:"expire"`
+}
+
+// TenantToken 使用内部应用模式获取飞书 tenant_access_token。
+// 不需要回调 URL 或用户授权，适用于无公网 IP 的本地环境。
+func (p feishuDocxProvider) TenantToken(ctx context.Context, httpClient *http.Client, appID, appSecret string) (token string, expiresAt time.Time, err error) {
+	payload, err := json.Marshal(map[string]string{
+		"app_id":     appID,
+		"app_secret": appSecret,
+	})
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	endpoint := strings.TrimRight(p.apiURL, "/") + defaultFeishuTenantTokenEndpoint
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
+	if err != nil {
+		return "", time.Time{}, err
+	}
+
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	if resp.StatusCode >= 400 {
+		return "", time.Time{}, fmt.Errorf("飞书 tenant_access_token HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	var envelope tenantTokenEnvelope
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return "", time.Time{}, err
+	}
+	if envelope.Code != 0 {
+		return "", time.Time{}, fmt.Errorf("飞书 tenant_access_token 错误 %d: %s", envelope.Code, strings.TrimSpace(envelope.Msg))
+	}
+	token = strings.TrimSpace(envelope.TenantAccessToken)
+	if token == "" {
+		return "", time.Time{}, errors.New("飞书 tenant_access_token 返回空 token")
+	}
+	expiresIn := envelope.Expire
+	if expiresIn <= 0 {
+		expiresIn = 7200
+	}
+	if expiresIn > feishuTokenExpireBuffer {
+		expiresIn -= feishuTokenExpireBuffer
+	}
+	return token, time.Now().Add(time.Duration(expiresIn) * time.Second), nil
 }
 
 func postFeishuDocxTokenJSON(ctx context.Context, httpClient *http.Client, endpoint string, payload map[string]string) ([]byte, error) {

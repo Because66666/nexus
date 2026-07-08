@@ -357,37 +357,36 @@ func TestServiceLoadActiveConnectionRefreshesExpiredFeishuDocxToken(t *testing.T
 	defer func() { _ = db.Close() }()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if !strings.HasSuffix(request.URL.Path, "/auth/v3/tenant_access_token/internal") {
+			t.Fatalf("飞书 tenant token 请求路径不正确: %s", request.URL.Path)
+		}
 		if !strings.Contains(request.Header.Get("Content-Type"), "application/json") {
-			t.Fatalf("飞书 refresh 应使用 JSON: %s", request.Header.Get("Content-Type"))
+			t.Fatalf("飞书 tenant token 应使用 JSON: %s", request.Header.Get("Content-Type"))
 		}
 		body, err := io.ReadAll(request.Body)
 		if err != nil {
-			t.Fatalf("读取 refresh 请求失败: %v", err)
+			t.Fatalf("读取 tenant token 请求失败: %v", err)
 		}
-		if !strings.Contains(string(body), `"refresh_token":"old-refresh"`) {
-			t.Fatalf("refresh 请求未带旧 refresh_token: %s", body)
+		if !strings.Contains(string(body), `"app_id":"refresh-feishu-client"`) {
+			t.Fatalf("tenant token 请求未带 app_id: %s", body)
 		}
-		if !strings.Contains(string(body), `"client_id":"refresh-feishu-client"`) || !strings.Contains(string(body), `"client_secret":"refresh-feishu-secret"`) {
-			t.Fatalf("refresh 请求未使用用户自有 OAuth Client: %s", body)
+		if !strings.Contains(string(body), `"app_secret":"refresh-feishu-secret"`) {
+			t.Fatalf("tenant token 请求未带 app_secret: %s", body)
 		}
-		_, _ = writer.Write([]byte(`{"code":0,"data":{"access_token":"new-feishu-docx-token","refresh_token":"new-refresh","expires_in":7200}}`))
+		_, _ = writer.Write([]byte(`{"code":0,"msg":"ok","tenant_access_token":"new-feishu-tenant-token","expire":7200}`))
 	}))
 	defer server.Close()
-	t.Setenv("NEXUS_CONNECTOR_FEISHU_DOCX_TOKEN_URL", server.URL)
+	t.Setenv("NEXUS_CONNECTOR_FEISHU_DOCX_API_BASE_URL", server.URL)
 
 	service := NewService(cfg, db)
 	service.httpClient = server.Client()
 	ctx := context.Background()
-	if _, err = service.SaveOAuthClientConfig(ctx, auth.SystemUserID, "feishu-docx", OAuthClientConfigRequest{
-		ClientID:     "refresh-feishu-client",
-		ClientSecret: "refresh-feishu-secret",
-	}); err != nil {
-		t.Fatalf("保存飞书 OAuth Client 失败: %v", err)
-	}
+
+	// 直接写入过期的 credentials（包含 app_id/app_secret，跳过 SaveOAuthClientConfig 的立即 fetch）
 	if err = service.upsertConnection(ctx, connectionRecord{
 		ConnectorID: "feishu-docx",
 		State:       "connected",
-		Credentials: `{"access_token":"old-feishu-docx-token","refresh_token":"old-refresh","expires_at":"1","scope":"docx:document"}`,
+		Credentials: `{"app_id":"refresh-feishu-client","app_secret":"refresh-feishu-secret","tenant_access_token":"old-token","expires_at":"1"}`,
 		AuthType:    "oauth2",
 	}); err != nil {
 		t.Fatalf("写入飞书连接状态失败: %v", err)
@@ -397,10 +396,7 @@ func TestServiceLoadActiveConnectionRefreshesExpiredFeishuDocxToken(t *testing.T
 	if err != nil {
 		t.Fatalf("读取飞书连接快照失败: %v", err)
 	}
-	if item == nil || item.AccessToken != "new-feishu-docx-token" {
+	if item == nil || item.AccessToken != "new-feishu-tenant-token" {
 		t.Fatalf("飞书 token 未刷新: %+v", item)
-	}
-	if item.Extra["refresh_token"] != "new-refresh" || item.Extra["scope"] != "docx:document" {
-		t.Fatalf("飞书 refresh_token 或旧 extra 未保留: %+v", item.Extra)
 	}
 }

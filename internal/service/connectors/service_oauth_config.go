@@ -2,11 +2,16 @@ package connectors
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/connectors/credentials"
+	"github.com/nexus-research-lab/nexus/internal/connectors/providers"
 	connectorstore "github.com/nexus-research-lab/nexus/internal/storage/connectors"
 )
 
@@ -47,6 +52,43 @@ func (s *Service) SaveOAuthClientConfig(ctx context.Context, ownerUserID string,
 	}); err != nil {
 		return nil, err
 	}
+
+	// feishu-docx 使用内部应用模式（tenant_access_token），保存后立即获取 token 并建立连接
+	if entry.ConnectorID == "feishu-docx" {
+		provider, pErr := providers.Get(entry.ConnectorID)
+		if pErr != nil {
+			return nil, fmt.Errorf("获取飞书 provider 失败: %w", pErr)
+		}
+		tp, ok := provider.(interface {
+			TenantToken(ctx context.Context, httpClient *http.Client, appID, appSecret string) (string, time.Time, error)
+		})
+		if !ok {
+			return nil, errors.New("飞书 provider 不支持 TenantToken")
+		}
+		token, expiresAt, ttErr := tp.TenantToken(ctx, s.httpClient, clientID, clientSecret)
+		if ttErr != nil {
+			return nil, fmt.Errorf("获取飞书 tenant_access_token 失败: %w", ttErr)
+		}
+		cred := map[string]string{
+			"app_id":              clientID,
+			"app_secret":          clientSecret,
+			"tenant_access_token": token,
+			"expires_at":          strconv.FormatInt(expiresAt.Unix(), 10),
+		}
+		encoded, _ := json.Marshal(cred)
+		if err = s.upsertConnection(ctx, connectionRecord{
+			OwnerUserID: ownerUserID,
+			ConnectorID: entry.ConnectorID,
+			State:       "connected",
+			Credentials: string(encoded),
+			AuthType:    entry.AuthType,
+		}); err != nil {
+			return nil, fmt.Errorf("保存飞书连接状态失败: %w", err)
+		}
+		info := s.toInfo(ctx, ownerUserID, entry, "connected")
+		return &info, nil
+	}
+
 	state, err := s.connectionState(ctx, ownerUserID, entry.ConnectorID)
 	if err != nil {
 		return nil, err

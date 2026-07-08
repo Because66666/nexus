@@ -1,10 +1,8 @@
 "use client";
 
-import { Check, Copy, ExternalLink, KeyRound, Save, Trash2 } from "lucide-react";
+import { KeyRound, Save, Trash2 } from "lucide-react";
 import { type FormEvent, useCallback } from "react";
 
-import { getConnectorOauthRedirectUri } from "@/config/desktop-runtime";
-import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import {
   UiDialogBackdrop,
@@ -13,7 +11,7 @@ import {
   UiDialogFormShell,
   UiDialogHeader,
 } from "@/shared/ui/dialog/dialog";
-import { UiButton, UiIconButton, UiLinkButton } from "@/shared/ui/button";
+import { UiButton, UiLinkButton } from "@/shared/ui/button";
 import { UiInput } from "@/shared/ui/form-control";
 import { UiPanel } from "@/shared/ui/panel";
 import type { ConnectorDetail } from "@/types/capability/connector";
@@ -37,7 +35,6 @@ export function ConnectorOAuthClientDialog({
   const detailResetKey = `${detail?.connector_id ?? ""}\x1f${detail?.oauth_client_id ?? ""}`;
   const [clientId, setClientId] = useResettableState(detail?.oauth_client_id ?? "", detailResetKey);
   const [clientSecret, setClientSecret] = useResettableState("", detailResetKey);
-  const { copied: callbackUrlCopied, copy: copyCallbackUrl } = useCopyToClipboard();
 
   const handleSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
@@ -52,8 +49,7 @@ export function ConnectorOAuthClientDialog({
 
   const isConfigured = detail.oauth_client_configured ?? false;
   const canSave = clientId.trim() !== "" && clientSecret.trim() !== "";
-  const callbackUrl = getConnectorOauthRedirectUri();
-  const providerName = detail.connector_id === "feishu-docx" ? "飞书开放平台应用" : "OAuth 应用";
+  const isFeishuDocx = detail.connector_id === "feishu-docx";
 
   return (
     <UiDialogBackdrop onClose={onClose}>
@@ -67,9 +63,15 @@ export function ConnectorOAuthClientDialog({
         />
 
         <UiDialogBody className="space-y-3" scrollable>
-          <UiPanel className="text-[12px] leading-relaxed" padding="sm" variant="inset">
-            在{providerName}中填写下面的 Callback URL，再复制 App ID 和 App Secret。
-          </UiPanel>
+          {isFeishuDocx ? (
+            <UiPanel className="text-[12px] leading-relaxed" padding="sm" variant="inset">
+              飞书云文档连接器使用内部应用模式，填入 App ID 和 App Secret 后自动连接，无需配置回调地址。
+            </UiPanel>
+          ) : (
+            <UiPanel className="text-[12px] leading-relaxed" padding="sm" variant="inset">
+              填入 Client ID 和 Client Secret 后保存配置。
+            </UiPanel>
+          )}
 
           {detail.docs_url ? (
             <UiLinkButton
@@ -80,29 +82,9 @@ export function ConnectorOAuthClientDialog({
               target="_blank"
               variant="text"
             >
-              <ExternalLink className="h-3 w-3" />
               查看文档
             </UiLinkButton>
           ) : null}
-
-          <div className="space-y-1">
-            <div className="text-[12px] font-medium text-(--text-muted)">Callback URL</div>
-            <UiPanel className="flex min-h-9 items-center gap-2" padding="sm" radius="sm" variant="inset">
-              <code className="min-w-0 flex-1 break-all text-[11px] leading-5 text-(--text-strong)">
-                {callbackUrl}
-              </code>
-              <UiIconButton
-                aria-label={callbackUrlCopied ? "已复制 Callback URL" : "复制 Callback URL"}
-                className="shrink-0"
-                onClick={() => void copyCallbackUrl(callbackUrl)}
-                size="sm"
-                title={callbackUrlCopied ? "已复制" : "复制 Callback URL"}
-                type="button"
-              >
-                {callbackUrlCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-              </UiIconButton>
-            </UiPanel>
-          </div>
 
           <label className="block space-y-1 text-[12px] font-medium text-(--text-muted)" htmlFor="oauth-client-id">
             <span>Client ID</span>
@@ -112,7 +94,7 @@ export function ConnectorOAuthClientDialog({
               controlSize="sm"
               id="oauth-client-id"
               onChange={(event) => setClientId(event.target.value)}
-              placeholder="飞书应用 App ID"
+              placeholder={isFeishuDocx ? "飞书应用 App ID" : "Client ID"}
               spellCheck={false}
               value={clientId}
             />
@@ -130,7 +112,7 @@ export function ConnectorOAuthClientDialog({
               id="oauth-client-secret"
               name="feishu-docx-client-secret"
               onChange={(event) => setClientSecret(event.target.value)}
-              placeholder={isConfigured ? "重新填写后保存" : "飞书应用 App Secret"}
+              placeholder={isConfigured ? "重新填写后保存" : "App Secret"}
               spellCheck={false}
               type="password"
               value={clientSecret}
@@ -160,7 +142,7 @@ export function ConnectorOAuthClientDialog({
             variant="solid"
           >
             <Save className="h-3.5 w-3.5" />
-            保存配置
+            保存并连接
           </UiButton>
         </UiDialogFooter>
       </UiDialogFormShell>

@@ -111,6 +111,11 @@ export function useConnectorController(): ConnectorDirectoryController {
         // 查找该连接器信息，判断是否 OAuth
         const target = allConnectors.find((c) => c.connector_id === connectorId);
         if (target?.auth_type === "oauth2") {
+          // feishu-docx 使用内部应用模式（tenant_access_token），不需要 OAuth 授权
+          if (target.connector_id === "feishu-docx") {
+            setErrorMessage("飞书云文档使用内部应用模式，请通过「配置应用」填写 App ID 和 App Secret 后自动连接");
+            return;
+          }
           let shop: string | undefined;
           if (target.connector_id === "shopify" || target.requires_extra?.includes("shop")) {
             const promptedShop = await openShopPrompt();

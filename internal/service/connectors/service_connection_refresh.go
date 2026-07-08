@@ -4,7 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/connectors/providers"
 )
@@ -21,43 +24,45 @@ func (s *Service) refreshActiveConnectionIfNeeded(ctx context.Context, ownerUser
 	if err != nil {
 		return record, err
 	}
+	// tenant_access_token 未过期则直接返回
 	if !credentialNeedsRefresh(current) {
 		return record, nil
 	}
-	refreshToken := strings.TrimSpace(current["refresh_token"])
-	if refreshToken == "" {
+	appID := strings.TrimSpace(current["app_id"])
+	appSecret := strings.TrimSpace(current["app_secret"])
+	if appID == "" || appSecret == "" {
+		// 从 OAuthClient 表补充凭证（兼容旧配置）
+		clientID, clientSecret, configErr := s.oauthCredentials(ctx, ownerUserID, record.ConnectorID)
+		if configErr != nil {
+			return record, nil
+		}
+		appID, appSecret = clientID, clientSecret
+	}
+	if appID == "" || appSecret == "" {
 		return record, nil
 	}
 	provider, err := providers.Get(record.ConnectorID)
 	if err != nil {
 		return record, err
 	}
-	refreshProvider, ok := provider.(providers.RefreshTokenProvider)
+	feishuProvider, ok := provider.(interface {
+		TenantToken(ctx context.Context, httpClient *http.Client, appID, appSecret string) (string, time.Time, error)
+	})
 	if !ok {
 		return record, nil
 	}
-	clientID, clientSecret, err := s.oauthCredentials(ctx, ownerUserID, record.ConnectorID)
+	newToken, expiresAt, err := feishuProvider.TenantToken(ctx, s.httpClient, appID, appSecret)
 	if err != nil {
 		return record, err
 	}
-	payload, err = refreshProvider.RefreshToken(ctx, s.httpClient, providers.TokenRefreshRequest{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		RefreshToken: refreshToken,
-	})
-	if err != nil {
-		return record, err
+	if current == nil {
+		current = map[string]string{}
 	}
-	updated, err := credentialMapFromPayload([]byte(normalizeOAuthPayload(payload)))
-	if err != nil {
-		return record, err
-	}
-	for key, value := range current {
-		if _, exists := updated[key]; !exists {
-			updated[key] = value
-		}
-	}
-	encoded, err := json.Marshal(updated)
+	current["app_id"] = appID
+	current["app_secret"] = appSecret
+	current["tenant_access_token"] = newToken
+	current["expires_at"] = formatExpiresAt(expiresAt)
+	encoded, err := json.Marshal(current)
 	if err != nil {
 		return record, err
 	}
@@ -73,4 +78,11 @@ func (s *Service) refreshActiveConnectionIfNeeded(ctx context.Context, ownerUser
 		return record, err
 	}
 	return record, nil
+}
+
+func formatExpiresAt(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return strconv.FormatInt(t.Unix(), 10)
 }
