@@ -474,14 +474,22 @@ func TestFeishuChannelSendDeliveryMessage(t *testing.T) {
 	if tokenRequests != 1 {
 		t.Fatalf("token 请求次数不正确: %d", tokenRequests)
 	}
-	if messagePayload["receive_id"] != "oc_group_123" || messagePayload["msg_type"] != "text" {
+	if messagePayload["receive_id"] != "oc_group_123" || messagePayload["msg_type"] != "post" {
 		t.Fatalf("飞书消息请求不正确: %+v", messagePayload)
 	}
-	var content map[string]string
+	var content struct {
+		ZhCn struct {
+			Content [][]struct {
+				Tag  string `json:"tag"`
+				Text string `json:"text"`
+			} `json:"content"`
+		} `json:"zh_cn"`
+	}
 	if err := json.Unmarshal([]byte(messagePayload["content"]), &content); err != nil {
 		t.Fatalf("解析飞书消息 content 失败: %v", err)
 	}
-	if content["text"] != "今日新闻摘要" {
+	if len(content.ZhCn.Content) == 0 || len(content.ZhCn.Content[0]) == 0 ||
+		content.ZhCn.Content[0][0].Tag != "md" || content.ZhCn.Content[0][0].Text != "今日新闻摘要" {
 		t.Fatalf("飞书消息正文不正确: %+v", content)
 	}
 }

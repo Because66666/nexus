@@ -43,9 +43,9 @@ func (c *FeishuChannel) SendDeliveryMessage(ctx context.Context, target channelc
 	for _, chunk := range channeltransport.SplitText(strings.TrimSpace(text), 4500) {
 		messageID := ""
 		if strings.TrimSpace(target.ThreadID) != "" {
-			messageID, err = c.replyTextChunk(ctx, token, target.ThreadID, chunk)
+			messageID, err = c.replyChunk(ctx, token, target.ThreadID, chunk)
 		} else {
-			messageID, err = c.sendTextChunk(ctx, token, receiveIDType, target.To, chunk)
+			messageID, err = c.sendChunk(ctx, token, receiveIDType, target.To, chunk)
 		}
 		if err != nil {
 			c.clearTenantAccessToken()
@@ -103,15 +103,61 @@ func (c *FeishuChannel) SendDeliveryTyping(ctx context.Context, target channelco
 	return nil
 }
 
-func (c *FeishuChannel) sendTextChunk(ctx context.Context, token string, receiveIDType string, receiveID string, text string) (string, error) {
-	content, err := json.Marshal(map[string]string{"text": text})
+// feishuPostContent 将 Markdown 文本包装为飞书富文本 post 消息的 content 字段。
+// 采用 md 标签以支持 CommonMark + GFM 语法渲染（加粗、列表、代码块、表格等）。
+// 若文本开头包含一级标题(# )，则提取为富文本标题并从正文中移除该行。
+func feishuPostContent(text string) (string, error) {
+	title, body := extractFeishuPostTitle(text)
+	post := map[string]any{
+		"content": [][]map[string]string{
+			{{"tag": "md", "text": body}},
+		},
+	}
+	if title != "" {
+		post["title"] = title
+	}
+	content := map[string]any{
+		"zh_cn": post,
+	}
+	encoded, err := json.Marshal(content)
+	if err != nil {
+		return "", err
+	}
+	return string(encoded), nil
+}
+
+// extractFeishuPostTitle 从 Markdown 文本前三行内解析首个一级标题(# )作为富文本标题。
+// 扫描范围限定为文本起始的三行（含空行）；返回标题文本与移除标题行后的正文，无匹配则标题为空。
+func extractFeishuPostTitle(text string) (string, string) {
+	lines := strings.Split(text, "\n")
+	scanLimit := 3
+	if len(lines) < scanLimit {
+		scanLimit = len(lines)
+	}
+	for i := 0; i < scanLimit; i++ {
+		trimmed := strings.TrimLeft(lines[i], " \t")
+		if !strings.HasPrefix(trimmed, "# ") {
+			continue
+		}
+		title := strings.TrimSpace(trimmed[2:])
+		remaining := append(append([]string{}, lines[:i]...), lines[i+1:]...)
+		body := strings.Join(remaining, "\n")
+		// 移除标题行后的前导换行，避免正文开头多余空行
+		body = strings.TrimLeft(body, "\n")
+		return title, body
+	}
+	return "", text
+}
+
+func (c *FeishuChannel) sendChunk(ctx context.Context, token string, receiveIDType string, receiveID string, text string) (string, error) {
+	content, err := feishuPostContent(text)
 	if err != nil {
 		return "", err
 	}
 	payload, err := json.Marshal(map[string]string{
 		"receive_id": strings.TrimSpace(receiveID),
-		"msg_type":   "text",
-		"content":    string(content),
+		"msg_type":   "post",
+		"content":    content,
 	})
 	if err != nil {
 		return "", err
@@ -140,14 +186,14 @@ func (c *FeishuChannel) sendTextChunk(ctx context.Context, token string, receive
 	return strings.TrimSpace(envelope.Data.MessageID), nil
 }
 
-func (c *FeishuChannel) replyTextChunk(ctx context.Context, token string, messageID string, text string) (string, error) {
-	content, err := json.Marshal(map[string]string{"text": text})
+func (c *FeishuChannel) replyChunk(ctx context.Context, token string, messageID string, text string) (string, error) {
+	content, err := feishuPostContent(text)
 	if err != nil {
 		return "", err
 	}
 	payload := map[string]any{
-		"msg_type": "text",
-		"content":  string(content),
+		"msg_type": "post",
+		"content":  content,
 	}
 	if c.replyInThread {
 		payload["reply_in_thread"] = true
