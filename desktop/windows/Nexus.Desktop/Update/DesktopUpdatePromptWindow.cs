@@ -4,7 +4,7 @@ using System.Windows.Input;
 
 namespace Nexus.Desktop.Update;
 
-internal sealed class DesktopUpdatePromptWindow : Window
+internal sealed class DesktopUpdatePromptWindow : System.Windows.Window
 {
     private const double WindowWidth = 640;
     private const double ContentMaxHeight = 300;
@@ -80,7 +80,7 @@ internal sealed class DesktopUpdatePromptWindow : Window
         });
 
         // Windows MessageBox 不支持滚动正文，release notes 必须被限制在固定区域内。
-        panel.Children.Add(new TextBox
+        panel.Children.Add(new System.Windows.Controls.TextBox
         {
             Text = releaseNotes,
             IsReadOnly = true,
@@ -91,10 +91,10 @@ internal sealed class DesktopUpdatePromptWindow : Window
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             MaxHeight = ContentMaxHeight,
             Padding = new Thickness(8),
-            BorderBrush = SystemColors.ControlDarkBrush,
+            BorderBrush = System.Windows.SystemColors.ControlDarkBrush,
             BorderThickness = new Thickness(1),
-            Background = SystemColors.ControlBrush,
-            Foreground = SystemColors.ControlTextBrush,
+            Background = System.Windows.SystemColors.ControlBrush,
+            Foreground = System.Windows.SystemColors.ControlTextBrush,
             FontSize = 12,
         });
         return panel;
@@ -104,8 +104,8 @@ internal sealed class DesktopUpdatePromptWindow : Window
     {
         var buttons = new StackPanel
         {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right,
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
             Margin = new Thickness(0, SectionSpacing, 0, 0),
         };
 
@@ -135,13 +135,13 @@ internal sealed class DesktopUpdatePromptWindow : Window
         return buttons;
     }
 
-    private static Button CreateButton(
+    private static System.Windows.Controls.Button CreateButton(
         string label,
         bool isDefault,
         System.Action action,
         bool isCancel = false)
     {
-        var button = new Button
+        var button = new System.Windows.Controls.Button
         {
             Content = label,
             IsDefault = isDefault,
@@ -160,7 +160,7 @@ internal sealed class DesktopUpdatePromptWindow : Window
         Close();
     }
 
-    private void HandlePreviewKeyDown(object sender, KeyEventArgs e)
+    private void HandlePreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         if (e.Key != Key.Escape)
         {

@@ -17,6 +17,7 @@ public partial class MainWindow : System.Windows.Window
     private readonly SidecarRuntimeConfig runtime;
     private readonly DesktopStartupTimeline startupTimeline;
     private readonly DesktopUpdateChecker updateChecker;
+    private readonly double _contentScale;
     private readonly DesktopTrayController trayController;
     private readonly System.Windows.Threading.DispatcherTimer webViewHealthProbeTimer;
     private WebViewHost? webViewHost;
@@ -33,6 +34,7 @@ public partial class MainWindow : System.Windows.Window
         this.startupTimeline = startupTimeline;
         this.updateChecker = updateChecker;
         InitializeComponent();
+        _contentScale = ConfigureWindowSize();
         ConfigureWebViewSurface(MainWebView);
         trayController = new DesktopTrayController(
             startupTimeline,
@@ -130,7 +132,7 @@ public partial class MainWindow : System.Windows.Window
 
     private WebViewHost CreateWebViewHost(WebView2 webView)
     {
-        return new WebViewHost(webView, runtime, startupTimeline, RecreateWebViewAsync);
+        return new WebViewHost(webView, runtime, startupTimeline, RecreateWebViewAsync, _contentScale);
     }
 
     private WebView2 GetOrCreateWebViewControl()
@@ -311,6 +313,48 @@ public partial class MainWindow : System.Windows.Window
             return;
         }
         _ = webViewHost.RecoverAfterWindowShownAsync(reason);
+    }
+
+    /// 根据屏幕工作区动态计算窗口初始尺寸与最小尺寸，返回内容缩放因子
+    private double ConfigureWindowSize()
+    {
+        var work = SystemParameters.WorkArea;
+        double designWidth = 1280, designHeight = 820;
+        double absoluteFloorWidth = 960, absoluteFloorHeight = 560;
+        double workAreaScale = 0.90, workAreaHeightCap = 0.88;
+        double minSizeScale = 1120.0 / 1280.0;
+        double designRatio = designHeight / designWidth;
+        double minRatio = 640.0 / 1120.0;
+
+        // 1) 初始宽度
+        double width = work.Width * workAreaScale;
+        width = Math.Max(Math.Min(width, designWidth), absoluteFloorWidth);
+
+        // 2) 初始高度按比例
+        double height = width * designRatio;
+
+        // 3) 高度溢出时反推
+        double maxHeight = work.Height * workAreaHeightCap;
+        if (height > maxHeight)
+        {
+            height = maxHeight;
+            width = height / designRatio;
+        }
+
+        // 4) 绝对下限
+        width = Math.Max(width, absoluteFloorWidth);
+        height = Math.Max(height, absoluteFloorHeight);
+
+        // 5) 最小尺寸
+        double minWidth = Math.Max(width * minSizeScale, absoluteFloorWidth * minSizeScale);
+        double minHeight = Math.Max(minWidth * minRatio, absoluteFloorHeight * minSizeScale * minRatio);
+
+        Width = Math.Floor(width);
+        Height = Math.Floor(height);
+        MinWidth = Math.Floor(minWidth);
+        MinHeight = Math.Floor(minHeight);
+
+        return Math.Min(width / designWidth, height / designHeight);
     }
 
     private static string TrimMetadata(string value)

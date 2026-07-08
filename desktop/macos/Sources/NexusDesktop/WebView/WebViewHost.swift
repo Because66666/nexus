@@ -26,6 +26,7 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
     runtime: SidecarRuntimeConfig,
     surfaceName: String,
     startupTimeline: DesktopStartupTimeline? = nil,
+    contentScale: CGFloat = 1.0,
     onWebReady: @escaping @MainActor () -> Void,
     openRoute: @escaping (DesktopWebRoute) -> Void,
     globalShortcutStatusProvider: @escaping () -> [String: Any],
@@ -66,6 +67,9 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
     webView.underPageBackgroundColor = .clear
     webView.setValue(false, forKey: "drawsBackground")
     webView.allowsBackForwardNavigationGestures = false
+    if contentScale < 1.0 {
+      webView.pageZoom = contentScale
+    }
     startupTimeline?.mark("webview.created", metadata: ["surface": surfaceName])
   }
 

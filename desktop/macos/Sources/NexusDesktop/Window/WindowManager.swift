@@ -130,10 +130,14 @@ final class WindowManager: NSObject, NSWindowDelegate {
     do {
       startupTimeline.mark("main_window.create_begin")
       mainWindowRevealed = false
+      let workArea = NSScreen.main?.visibleFrame.size ?? NSSize(width: 1280, height: 820)
+      let preset = DesktopWindowMetrics.preset(for: workArea)
+      let contentScale = DesktopWindowMetrics.contentScale(for: workArea)
       let host = try WebViewHost(
         runtime: runtime,
         surfaceName: "main",
         startupTimeline: startupTimeline,
+        contentScale: contentScale,
         onWebReady: { [weak self] in
           self?.revealMainWindowIfNeeded(source: "web.ready")
         },
@@ -146,7 +150,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
         globalShortcutAcceleratorResetter: globalShortcutAcceleratorResetter
       )
       let window = NSWindow(
-        contentRect: NSRect(x: 0, y: 0, width: 1280, height: 820),
+        contentRect: NSRect(x: 0, y: 0, width: preset.width, height: preset.height),
         styleMask: [.titled, .closable, .miniaturizable, .resizable],
         backing: .buffered,
         defer: false
@@ -155,7 +159,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
       window.titleVisibility = .hidden
       window.titlebarAppearsTransparent = true
       window.styleMask.insert(.fullSizeContentView)
-      window.minSize = NSSize(width: 1120, height: 640)
+      window.minSize = NSSize(width: preset.minWidth, height: preset.minHeight)
       window.isReleasedWhenClosed = false
       window.delegate = self
       window.backgroundColor = .clear

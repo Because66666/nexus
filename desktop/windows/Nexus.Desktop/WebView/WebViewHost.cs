@@ -18,6 +18,7 @@ internal sealed class WebViewHost : IDisposable
     private readonly SidecarRuntimeConfig runtime;
     private readonly DesktopStartupTimeline startupTimeline;
     private readonly Func<DesktopWebRoute, string, string, Task> recreateWebViewAsync;
+    private readonly double contentScale;
     private DesktopBridgeHandler? bridgeHandler;
     private bool disposed;
     private bool resumeCheckInFlight;
@@ -31,12 +32,14 @@ internal sealed class WebViewHost : IDisposable
         WebView2 webView,
         SidecarRuntimeConfig runtime,
         DesktopStartupTimeline startupTimeline,
-        Func<DesktopWebRoute, string, string, Task> recreateWebViewAsync)
+        Func<DesktopWebRoute, string, string, Task> recreateWebViewAsync,
+        double contentScale = 1.0)
     {
         this.webView = webView;
         this.runtime = runtime;
         this.startupTimeline = startupTimeline;
         this.recreateWebViewAsync = recreateWebViewAsync;
+        this.contentScale = Math.Clamp(contentScale, 0.25, 1.0);
     }
 
     public async Task InitializeAsync()
@@ -65,6 +68,11 @@ internal sealed class WebViewHost : IDisposable
         core.Settings.IsZoomControlEnabled = false;
         core.Settings.IsGeneralAutofillEnabled = false;
         core.Settings.IsPasswordAutosaveEnabled = false;
+
+        if (contentScale < 1.0)
+        {
+            webView.ZoomFactor = contentScale;
+        }
 
         InstallDesktopSessionCookie(core);
         await core.AddScriptToExecuteOnDocumentCreatedAsync(DesktopRuntimeScript.Make(runtime));
