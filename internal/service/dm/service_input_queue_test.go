@@ -8,6 +8,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	_ "modernc.org/sqlite"
 
@@ -67,18 +68,27 @@ func TestServiceHandleChatQueuesRunningRoundByDefault(t *testing.T) {
 
 	client.mu.Lock()
 	interruptCalls := client.interruptCalls
-	sentContents := append([]string(nil), client.sentContents...)
 	client.mu.Unlock()
 	if interruptCalls != 0 {
 		t.Fatalf("默认排队不应中断运行中 DM round: interruptCalls=%d", interruptCalls)
 	}
-	// 轮内排队注入不再带 runtime context（情绪态），避免污染前缀缓存。
-	if len(sentContents) != 1 ||
-		!strings.Contains(sentContents[0], "这是补充要求") {
-		t.Fatalf("运行中 DM round 未收到排队输入: %+v", sentContents)
-	}
 	if len(factory.options) != 1 {
 		t.Fatalf("排队输入不应创建新 runtime client: got=%d want=1", len(factory.options))
+	}
+
+	// 验证消息已持久化到 InputQueueStore，而非通过流式注入。
+	agentValue, _ := agentService.GetAgent(context.Background(), "nexus")
+	location := workspacestore.InputQueueLocation{
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: agentValue.WorkspacePath,
+		SessionKey:    sessionKey,
+	}
+	items, err := service.inputQueue.Snapshot(location)
+	if err != nil {
+		t.Fatalf("读取队列快照失败: %v", err)
+	}
+	if len(items) != 1 || !strings.Contains(items[0].Content, "这是补充要求") {
+		t.Fatalf("InputQueue 未正确排队消息: items=%+v", items)
 	}
 
 	if err := service.HandleInterrupt(context.Background(), InterruptRequest{SessionKey: sessionKey}); err != nil {

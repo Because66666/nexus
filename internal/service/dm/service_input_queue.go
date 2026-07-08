@@ -183,6 +183,7 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 		RoundID:              "queue_" + item.ID,
 		DeliveryPolicy:       protocol.NormalizeChatDeliveryPolicy(string(item.DeliveryPolicy)),
 		BroadcastUserMessage: true,
+		ExternalReplyTarget:  externalReplyTargetFromProtocol(item.ExternalReplyTarget),
 	})
 	if err == nil {
 		if len(s.runtime.GetRunningRoundIDs(normalizedSessionKey)) == 0 {

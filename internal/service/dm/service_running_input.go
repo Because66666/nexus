@@ -5,6 +5,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -25,12 +26,26 @@ func (s *Service) queueRunningInput(
 	if len(runningRoundIDs) == 0 {
 		return false, runtimectx.ErrNoRunningRound
 	}
-	runtimeContent, err := s.renderRuntimeContentWithAttachments(ctx, content, attachments)
-	if err != nil {
-		return false, err
+
+	// 持久化排队：将消息写入 InputQueue，等当前 round 完成后自动派发，
+	// 避免流式注入导致 SDK 中断当前运行中的 round。
+	location := workspacestore.InputQueueLocation{
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: agentValue.WorkspacePath,
+		SessionKey:    sessionKey,
 	}
-	// 轮内注入不带 runtime context（情绪态）：避免逐步污染 prompt 前缀缓存。
-	if _, err := s.runtime.SendContentToRunningRound(ctx, sessionKey, runtimeContent.Payload()); err != nil {
+	items, err := s.inputQueue.Enqueue(location, protocol.InputQueueItem{
+		Scope:               protocol.InputQueueScopeDM,
+		SessionKey:          sessionKey,
+		AgentID:             agentValue.AgentID,
+		Source:              protocol.InputQueueSourceUser,
+		Content:             content,
+		Attachments:         attachments,
+		DeliveryPolicy:      protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy)),
+		ExternalReplyTarget: externalReplyTargetToProtocol(request.ExternalReplyTarget),
+		OwnerUserID:         authctx.OwnerUserID(ctx),
+	})
+	if err != nil {
 		return false, err
 	}
 	if err := s.recordRoundMarkerWithOptions(agentValue.WorkspacePath, sessionItem, request.RoundID, content, workspacestore.RoundMarkerOptions{
@@ -70,7 +85,9 @@ func (s *Service) queueRunningInput(
 		s.broadcastUserRoundMarker(ctx, sessionItem, request.RoundID, request.UserMessageID, content, protocol.ChatDeliveryPolicyQueue, attachments)
 	}
 	s.broadcastSessionStatus(ctx, sessionKey)
-	s.loggerFor(ctx).Info("排队 DM 消息到运行中 round",
+	// 广播队列快照，让前端感知待发送队列变更
+	s.broadcastInputQueueSnapshot(ctx, sessionKey, items)
+	s.loggerFor(ctx).Info("DM 消息已排队等待运行中 round 完成",
 		"session_key", sessionKey,
 		"agent_id", agentValue.AgentID,
 		"round_id", request.RoundID,
@@ -122,4 +139,34 @@ func (s *Service) guideRunningInput(
 		"content_preview", logx.PreviewText(content, 240),
 	)
 	return true, nil
+}
+
+// externalReplyTargetToProtocol 将 dm ExternalReplyTarget 转换为协议序列化版本。
+func externalReplyTargetToProtocol(target *ExternalReplyTarget) *protocol.InputQueueReplyTarget {
+	if target == nil {
+		return nil
+	}
+	return &protocol.InputQueueReplyTarget{
+		Mode:       target.Mode,
+		Channel:    target.Channel,
+		To:         target.To,
+		AccountID:  target.AccountID,
+		ThreadID:   target.ThreadID,
+		SessionKey: target.SessionKey,
+	}
+}
+
+// externalReplyTargetFromProtocol 将协议序列化版本转换回 dm ExternalReplyTarget。
+func externalReplyTargetFromProtocol(target *protocol.InputQueueReplyTarget) *ExternalReplyTarget {
+	if target == nil {
+		return nil
+	}
+	return &ExternalReplyTarget{
+		Mode:       target.Mode,
+		Channel:    target.Channel,
+		To:         target.To,
+		AccountID:  target.AccountID,
+		ThreadID:   target.ThreadID,
+		SessionKey: target.SessionKey,
+	}
 }

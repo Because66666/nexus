@@ -234,6 +234,16 @@ func newFeishuSDKEventClient(config feishuEventClientConfig) feishuEventClient {
 	if config.OnReaction != nil {
 		dispatcher.OnP2MessageReactionCreatedV1(config.OnReaction)
 	}
+	// 以下事件无需业务处理，注册空承接函数避免 SDK 报 "not found handler" 错误
+	dispatcher.OnP2MessageReadV1(func(ctx context.Context, event *larkim.P2MessageReadV1) error {
+		return nil
+	})
+	dispatcher.OnP2MessageRecalledV1(func(ctx context.Context, event *larkim.P2MessageRecalledV1) error {
+		return nil
+	})
+	dispatcher.OnP2MessageReactionDeletedV1(func(ctx context.Context, event *larkim.P2MessageReactionDeletedV1) error {
+		return nil
+	})
 	options := []larkws.ClientOption{
 		larkws.WithEventHandler(dispatcher),
 		larkws.WithLogLevel(larkcore.LogLevelWarn),
