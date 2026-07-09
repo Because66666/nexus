@@ -83,6 +83,10 @@ export function useTextareaHeight(
       const prepared = prepare(value || " ", fontRef.current, { whiteSpace: "pre-wrap" });
       const result = layout(prepared, widthRef.current, lineHeight);
       contentHeight = result.height + paddingY;
+      // pretext does not account for empty lines created by trailing newlines,
+      // compensate by adding lineHeight for each trailing whitespace char.
+      const trailingWhitespace = value.length - value.trimEnd().length;
+      contentHeight += trailingWhitespace * lineHeight;
     } catch {
       // Fallback: count newlines × lineHeight (rough but reflow-free)
       const lines = (value.match(/\n/g) ?? []).length + 1;
