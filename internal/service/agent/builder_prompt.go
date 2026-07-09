@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -49,6 +50,7 @@ func (b *promptBuilder) Build(ctx context.Context, agentValue *protocol.Agent) (
 	sections := make([]string, 0, 8)
 	sections = appendPromptSection(sections, b.loadStaticPrompt(scope))
 	sections = appendPromptSection(sections, buildRuntimeScopeSection(ctx))
+	sections = appendPromptSection(sections, buildPlatformNotesSection())
 	for _, section := range buildAgentProfileSections(agentValue, scope) {
 		sections = appendPromptSection(sections, section)
 	}
@@ -180,6 +182,19 @@ func buildRuntimeScopeSection(ctx context.Context) string {
 	return strings.Join(lines, "\n")
 }
 
+// buildPlatformNotesSection 按 runtime.GOOS 选择对应平台提示词。
+// 仅区分 darwin 和 windows，其他平台不注入。
+func buildPlatformNotesSection() string {
+	switch runtime.GOOS {
+	case "darwin":
+		return defaultPlatformDarwinPrompt
+	case "windows":
+		return defaultPlatformWindowsPrompt
+	default:
+		return ""
+	}
+}
+
 func buildAgentProfileSections(agentValue *protocol.Agent, scope promptBuildScope) []string {
 	if agentValue == nil {
 		return nil
@@ -306,4 +321,3 @@ func agentValueName(agentValue *protocol.Agent) string {
 	}
 	return strings.TrimSpace(agentValue.AgentID)
 }
-
