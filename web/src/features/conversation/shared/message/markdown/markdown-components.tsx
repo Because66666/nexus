@@ -183,7 +183,7 @@ export function createMarkdownComponents(
       }
 
       return (
-        <span className="message-cjk-code-font mx-0.5 inline-flex max-w-full overflow-hidden rounded-[5px] border border-primary/20 bg-primary/10 px-2 py-0.3 align-middle text-[0.9em] text-primary">
+        <span className="message-cjk-code-font mx-0.5 inline-block max-w-full overflow-hidden rounded-[5px] border border-primary/20 bg-primary/10 px-2 py-0.3 align-middle text-[0.9em] text-primary">
           <span className="max-w-full whitespace-pre-wrap break-words">{value}</span>
         </span>
       );
