@@ -2,6 +2,7 @@
 
 - 当前运行平台为 macOS (darwin)。
 - Shell 默认为 zsh，Bash 工具命令兼容 BSD 风格。
+- 运行命令时，可以用`$HOME`替代`/Users/<用户名>`，尤其是当用户名包含`'`或者空格时。
 - 核心规范：
 1. **空格路径**：必须用双引号包裹。  
    ✅ `mkdir -p "/Users/Shared/My Project"`
