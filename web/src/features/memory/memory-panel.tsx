@@ -41,6 +41,7 @@ import {
   CapabilityPageLayout,
   CapabilitySectionHeader,
 } from "@/features/capability/shared/capability-page-layout";
+import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceSurfaceToolbarAction,
@@ -76,6 +77,7 @@ export function MemoryPanel() {
   const [loading, setLoading] = useState(false);
   const [cleaning, setCleaning] = useState(false);
   const [mutatingId, setMutatingId] = useState("");
+  const [confirmDeleteItem, setConfirmDeleteItem] = useState<MemoryItem | null>(null);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
 
   const refresh = useCallback(async () => {
@@ -136,7 +138,8 @@ export function MemoryPanel() {
     item: MemoryItem,
     action: "promote" | "ignore" | "delete" | "save",
   ) => {
-    if (action === "delete" && !window.confirm("确定删除这条记忆？删除后不会参与召回。")) {
+    if (action === "delete") {
+      setConfirmDeleteItem(item);
       return;
     }
     setMutatingId(item.entry_id);
@@ -147,9 +150,6 @@ export function MemoryPanel() {
       } else if (action === "ignore") {
         await ignoreUserMemoryItemApi(item.entry_id);
         setFeedback({ tone: "success", message: "候选记忆已忽略" });
-      } else if (action === "delete") {
-        await deleteUserMemoryItemApi(item.entry_id);
-        setFeedback({ tone: "success", message: "记忆已删除" });
       } else {
         await updateUserMemoryItemApi(item.entry_id, {
           content: editingContent,
@@ -158,6 +158,23 @@ export function MemoryPanel() {
         setEditingContent("");
         setFeedback({ tone: "success", message: "记忆已保存" });
       }
+      await refresh();
+    } catch (error) {
+      setFeedback({
+        tone: "error",
+        message: error instanceof Error ? error.message : "操作失败",
+      });
+    } finally {
+      setMutatingId("");
+    }
+  };
+
+  const executeDelete = async (item: MemoryItem) => {
+    setConfirmDeleteItem(null);
+    setMutatingId(item.entry_id);
+    try {
+      await deleteUserMemoryItemApi(item.entry_id);
+      setFeedback({ tone: "success", message: "记忆已删除" });
       await refresh();
     } catch (error) {
       setFeedback({
@@ -418,6 +435,16 @@ export function MemoryPanel() {
             tone: feedback.tone,
           },
         ] : []}
+      />
+
+      <ConfirmDialog
+        isOpen={confirmDeleteItem !== null}
+        title="确认删除"
+        message="确定删除这条记忆？删除后不会参与召回。"
+        variant="danger"
+        confirmText="删除"
+        onConfirm={() => confirmDeleteItem && void executeDelete(confirmDeleteItem)}
+        onCancel={() => setConfirmDeleteItem(null)}
       />
     </WorkspaceSurfaceScaffold>
   );

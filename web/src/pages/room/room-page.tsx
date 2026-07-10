@@ -108,6 +108,34 @@ export function RoomPage() {
     return nextConversationId;
   }, [controller, navigate, params.roomId]);
 
+  // Ctrl/Cmd + J：在当前房间下快速新建空白对话（房间号不变）。
+  useEffect(() => {
+    if (!controller.isHydrated || !params.roomId || !controller.currentRoom || controller.isDialogOpen) {
+      return;
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey)) {
+        return;
+      }
+      if (event.shiftKey || event.altKey) {
+        return;
+      }
+      if (event.key !== "k" && event.key !== "K") {
+        return;
+      }
+      event.preventDefault();
+      void handleCreateConversation();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [
+    controller.isHydrated,
+    controller.isDialogOpen,
+    controller.currentRoom,
+    params.roomId,
+    handleCreateConversation,
+  ]);
+
   const handleDeleteConversation = useCallback(async (conversationId: string) => {
     const routeRoomId = params.roomId;
     const isDeletingActiveConversation = conversationId === controller.conversationId;

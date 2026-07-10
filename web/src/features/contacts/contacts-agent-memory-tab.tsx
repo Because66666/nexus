@@ -38,6 +38,7 @@ import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/worksp
 import { UiListRow } from "@/shared/ui/list-row";
 import { UiSelectMenu } from "@/shared/ui/select-menu";
 import { UiStateBlock } from "@/shared/ui/state-block";
+import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import type { Agent } from "@/types/agent/agent";
 import type { MemoryItem, MemoryStats } from "@/types/memory/memory";
 
@@ -70,6 +71,7 @@ export function ContactsAgentMemoryTab({ agent }: ContactsAgentMemoryTabProps) {
   const [loading, setLoading] = useState(false);
   const [cleaning, setCleaning] = useState(false);
   const [deletingItemId, setDeletingItemId] = useState("");
+  const [confirmDeleteItem, setConfirmDeleteItem] = useState<MemoryItem | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const visibleItems = useMemo(() => {
@@ -123,9 +125,14 @@ export function ContactsAgentMemoryTab({ agent }: ContactsAgentMemoryTabProps) {
 
   const handleDelete = useCallback(
     async (item: MemoryItem) => {
-      if (!window.confirm("确定删除这条记忆？删除后不会参与召回。")) {
-        return;
-      }
+      setConfirmDeleteItem(item);
+    },
+    [],
+  );
+
+  const executeDelete = useCallback(
+    async (item: MemoryItem) => {
+      setConfirmDeleteItem(null);
       setDeletingItemId(item.entry_id);
       setError(null);
       try {
@@ -263,6 +270,16 @@ export function ContactsAgentMemoryTab({ agent }: ContactsAgentMemoryTabProps) {
           onDelete={handleDelete}
         />
       </div>
+
+      <ConfirmDialog
+        isOpen={confirmDeleteItem !== null}
+        title="确认删除"
+        message="确定删除这条记忆？删除后不会参与召回。"
+        variant="danger"
+        confirmText="删除"
+        onConfirm={() => confirmDeleteItem && void executeDelete(confirmDeleteItem)}
+        onCancel={() => setConfirmDeleteItem(null)}
+      />
     </div>
   );
 }

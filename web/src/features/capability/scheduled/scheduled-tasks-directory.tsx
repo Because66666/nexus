@@ -22,6 +22,7 @@ import {
   CapabilitySectionHeader,
 } from "@/features/capability/shared/capability-page-layout";
 
+import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
 import { notifyScheduledTasksMutated } from "../scheduled-task-events";
 import { ScheduledTaskDialog } from "./dialog/scheduled-task-dialog";
@@ -89,6 +90,7 @@ export function ScheduledTasksDirectory() {
   const [runPendingJobId, setRunPendingJobId] = useState<string | null>(null);
   const [togglePendingJobId, setTogglePendingJobId] = useState<string | null>(null);
   const [deletePendingJobId, setDeletePendingJobId] = useState<string | null>(null);
+  const [confirmDeleteTask, setConfirmDeleteTask] = useState<ScheduledTaskItem | null>(null);
   const automation = useAutomationController({ includeAllTasks: true });
   const refreshTasks = automation.refreshTasks;
   const refreshAll = automation.refreshAll;
@@ -257,9 +259,11 @@ export function ScheduledTasksDirectory() {
   };
 
   const handleDelete = async (task: ScheduledTaskItem) => {
-    if (!window.confirm(`确认删除任务“${task.name}”吗？`)) {
-      return;
-    }
+    setConfirmDeleteTask(task);
+  };
+
+  const executeDelete = async (task: ScheduledTaskItem) => {
+    setConfirmDeleteTask(null);
     setDeletePendingJobId(task.job_id);
     try {
       await deleteScheduledTaskApi(task.job_id);
@@ -373,6 +377,16 @@ export function ScheduledTasksDirectory() {
       />
 
       <FeedbackBannerStack items={feedbackItems} />
+
+      <ConfirmDialog
+        isOpen={confirmDeleteTask !== null}
+        title="确认删除"
+        message={`确认删除任务"${confirmDeleteTask?.name}"吗？`}
+        variant="danger"
+        confirmText="删除"
+        onConfirm={() => confirmDeleteTask && void executeDelete(confirmDeleteTask)}
+        onCancel={() => setConfirmDeleteTask(null)}
+      />
     </>
   );
 }
