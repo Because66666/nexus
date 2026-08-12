@@ -230,3 +230,56 @@ func TestUpdateModelCreatesManualModel(t *testing.T) {
 		t.Fatalf("手动启用模型不应自动成为默认模型: %+v", records[0].Models[0])
 	}
 }
+
+func TestUpdateModelDisablesDefaultModelWithDemotion(t *testing.T) {
+	ctx := context.Background()
+	service, _ := newTestService(t)
+
+	record, err := service.Create(ctx, CreateInput{
+		Provider:    "demote-default",
+		PresetKey:   presetCustom,
+		APIFormat:   APIFormatAnthropicMessages,
+		AuthToken:   "demote-key",
+		BaseURL:     "https://api.example.com",
+		ModelsPath:  "/models",
+		Enabled:     true,
+		DisplayName: "Demote Default",
+	})
+	if err != nil {
+		t.Fatalf("创建 provider 失败: %v", err)
+	}
+	if _, err = service.UpdateModel(ctx, record.Provider, "model-a", UpdateModelInput{
+		Enabled:   true,
+		IsDefault: true,
+	}); err != nil {
+		t.Fatalf("设置默认模型失败: %v", err)
+	}
+
+	disabled, err := service.UpdateModel(ctx, record.Provider, "model-a", UpdateModelInput{
+		Enabled:   false,
+		IsDefault: false,
+	})
+	if err != nil {
+		t.Fatalf("显式降级后禁用默认模型失败: %v", err)
+	}
+	if disabled.Enabled || disabled.IsDefault {
+		t.Fatalf("显式降级后默认模型应被禁用: %+v", disabled)
+	}
+
+	if _, err = service.UpdateModel(ctx, record.Provider, "model-a", UpdateModelInput{
+		Enabled:   true,
+		IsDefault: true,
+	}); err != nil {
+		t.Fatalf("恢复默认模型失败: %v", err)
+	}
+	kept, err := service.UpdateModel(ctx, record.Provider, "model-a", UpdateModelInput{
+		Enabled:   false,
+		IsDefault: true,
+	})
+	if err != nil {
+		t.Fatalf("保留默认标志的禁用请求不应报错: %v", err)
+	}
+	if !kept.Enabled || !kept.IsDefault {
+		t.Fatalf("保留默认标志的禁用请求应维持启用: %+v", kept)
+	}
+}

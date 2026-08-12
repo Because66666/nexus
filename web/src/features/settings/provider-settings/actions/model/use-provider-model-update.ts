@@ -1,6 +1,10 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
+import {
+  getUserPreferences,
+  USER_PREFERENCES_CHANGED_EVENT,
+} from "@/config/runtime-options";
 import { getErrorMessage } from "@/lib/error-message";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type {
@@ -10,7 +14,9 @@ import type {
 
 import type { ProviderModelApi } from "../../provider-settings-api";
 import {
+  defaultModelSelectionsFromPreferences,
   isDefaultModelDisable,
+  isProtectedDefaultModel,
   modelUpdatePayload,
   parseProviderOptions,
 } from "../../model/provider-model-model";
@@ -55,6 +61,35 @@ export function useProviderModelUpdate({
     });
   }, [setFeedback, t]);
 
+  const [defaultSelections, setDefaultSelections] = useState(() =>
+    defaultModelSelectionsFromPreferences(getUserPreferences()));
+  useEffect(() => {
+    const syncSelections = () => setDefaultSelections(
+      defaultModelSelectionsFromPreferences(getUserPreferences()),
+    );
+    window.addEventListener(USER_PREFERENCES_CHANGED_EVENT, syncSelections);
+    return () => {
+      window.removeEventListener(USER_PREFERENCES_CHANGED_EVENT, syncSelections);
+    };
+  }, []);
+
+  const protectedDefaultModelIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (!selectedRecord) {
+      return ids;
+    }
+    for (const model of selectedRecord.models) {
+      if (isProtectedDefaultModel(
+        selectedRecord.provider,
+        model,
+        defaultSelections,
+      )) {
+        ids.add(model.model_id);
+      }
+    }
+    return ids;
+  }, [defaultSelections, selectedRecord]);
+
   const handleToggleModel = useCallback((
     model: ProviderModelRecord,
     enabled: boolean,
@@ -62,7 +97,15 @@ export function useProviderModelUpdate({
     if (!selectedRecord || !selectedCanManage) {
       return;
     }
-    if (isDefaultModelDisable(model, enabled)) {
+    const selections = defaultModelSelectionsFromPreferences(
+      getUserPreferences(),
+    );
+    if (isDefaultModelDisable(
+      selectedRecord.provider,
+      model,
+      enabled,
+      selections,
+    )) {
       handleDefaultModelDisableAttempt(model);
       return;
     }
@@ -71,7 +114,10 @@ export function useProviderModelUpdate({
         await modelApi.updateModel(
           selectedRecord.provider,
           model.model_id,
-          modelUpdatePayload(model, { enabled }),
+          modelUpdatePayload(model, {
+            enabled,
+            is_default: enabled ? model.is_default : false,
+          }),
         );
         await refreshAll(selectedRecord.provider);
       } catch (error) {
@@ -152,5 +198,6 @@ export function useProviderModelUpdate({
     handleDefaultModelDisableAttempt,
     handleSaveModelOptions,
     handleToggleModel,
+    protectedDefaultModelIds,
   };
 }

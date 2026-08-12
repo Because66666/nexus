@@ -137,6 +137,9 @@ export function ProviderSettingsPanel({
                   onOpenAddModel={modelActions.handleOpenAddModel}
                   onToggleModel={modelActions.handleToggleModel}
                   pendingAction={state.pendingAction}
+                  protectedDefaultModelIds={
+                    modelActions.protectedDefaultModelIds
+                  }
                   selectedCanManage={state.selectedCanManage}
                   selectedRecord={state.selectedRecord}
                 />

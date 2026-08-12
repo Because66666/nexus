@@ -41,6 +41,7 @@ interface ProviderSettingsModelListProps {
   onOpenAddModel: () => void;
   onToggleModel: (model: ProviderModelRecord, enabled: boolean) => void;
   pendingAction: ProviderPendingAction | null;
+  protectedDefaultModelIds: ReadonlySet<string>;
   selectedCanManage: boolean;
   selectedRecord: ProviderConfigRecord | null;
 }
@@ -186,12 +187,14 @@ function ProviderModelToggle({
   onDefaultModelDisableAttempt,
   onToggleModel,
   pendingAction,
+  protectedDefaultModelIds,
   selectedCanManage,
 }: Pick<
   ProviderSettingsModelListProps,
   | "onDefaultModelDisableAttempt"
   | "onToggleModel"
   | "pendingAction"
+  | "protectedDefaultModelIds"
   | "selectedCanManage"
 > & { model: ProviderModelRecord }) {
   const { t } = useI18n();
@@ -200,7 +203,7 @@ function ProviderModelToggle({
   if (isPending) {
     return <Loader2 className="h-4 w-4 animate-spin text-(--text-muted)" />;
   }
-  if (model.is_default) {
+  if (protectedDefaultModelIds.has(model.model_id)) {
     return (
       <DefaultModelToggle
         model={model}
@@ -227,6 +230,7 @@ function ProviderModelRow({
   onModelOptions,
   onToggleModel,
   pendingAction,
+  protectedDefaultModelIds,
   selectedCanManage,
 }: Pick<
   ProviderSettingsModelListProps,
@@ -234,6 +238,7 @@ function ProviderModelRow({
   | "onModelOptions"
   | "onToggleModel"
   | "pendingAction"
+  | "protectedDefaultModelIds"
   | "selectedCanManage"
 > & { model: ProviderModelRecord }) {
   const { t } = useI18n();
@@ -266,6 +271,7 @@ function ProviderModelRow({
           onDefaultModelDisableAttempt={onDefaultModelDisableAttempt}
           onToggleModel={onToggleModel}
           pendingAction={pendingAction}
+          protectedDefaultModelIds={protectedDefaultModelIds}
           selectedCanManage={selectedCanManage}
         />
       </div>
@@ -279,6 +285,7 @@ function ProviderModelListBody({
   onModelOptions,
   onToggleModel,
   pendingAction,
+  protectedDefaultModelIds,
   selectedCanManage,
   selectedRecord,
 }: Pick<
@@ -288,6 +295,7 @@ function ProviderModelListBody({
   | "onModelOptions"
   | "onToggleModel"
   | "pendingAction"
+  | "protectedDefaultModelIds"
   | "selectedCanManage"
   | "selectedRecord"
 >) {
@@ -309,6 +317,7 @@ function ProviderModelListBody({
       onModelOptions={onModelOptions}
       onToggleModel={onToggleModel}
       pendingAction={pendingAction}
+      protectedDefaultModelIds={protectedDefaultModelIds}
       selectedCanManage={selectedCanManage}
     />
   ));
@@ -327,6 +336,7 @@ export function ProviderSettingsModelList({
   onOpenAddModel,
   onToggleModel,
   pendingAction,
+  protectedDefaultModelIds,
   selectedCanManage,
   selectedRecord,
 }: ProviderSettingsModelListProps) {
@@ -362,6 +372,7 @@ export function ProviderSettingsModelList({
           onModelOptions={onModelOptions}
           onToggleModel={onToggleModel}
           pendingAction={pendingAction}
+          protectedDefaultModelIds={protectedDefaultModelIds}
           selectedCanManage={selectedCanManage}
           selectedRecord={selectedRecord}
         />

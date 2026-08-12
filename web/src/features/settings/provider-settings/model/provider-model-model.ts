@@ -1,8 +1,13 @@
+import {
+  type NormalizedModelSelection,
+  normalizeModelSelectionPreference,
+} from "@/lib/settings/preferences-normalization";
 import type {
   ProviderModelCapabilities,
   ProviderModelRecord,
   UpdateProviderModelPayload,
 } from "@/types/capability/provider";
+import type { UserPreferences } from "@/types/settings/preferences";
 
 import type { ModelOptionsState } from "./provider-settings-types";
 
@@ -21,11 +26,65 @@ export function buildNewModelPayload(
   };
 }
 
+export interface DefaultModelSelections {
+  agent: NormalizedModelSelection | null;
+  background: NormalizedModelSelection | null;
+  image: NormalizedModelSelection | null;
+  vision: NormalizedModelSelection | null;
+}
+
+export function defaultModelSelectionsFromPreferences(
+  preferences: UserPreferences,
+): DefaultModelSelections {
+  return {
+    agent: normalizeModelSelectionPreference({
+      provider: preferences.default_agent_options.provider,
+      model: preferences.default_agent_options.model,
+    }) ?? null,
+    background: normalizeModelSelectionPreference(
+      preferences.default_background_model_selection,
+    ) ?? null,
+    image: normalizeModelSelectionPreference(
+      preferences.default_image_model_selection,
+    ) ?? null,
+    vision: normalizeModelSelectionPreference(
+      preferences.default_vision_model_selection,
+    ) ?? null,
+  };
+}
+
+// 生效默认模型 = 任一角色偏好显式选中，或 Provider 默认仍承担对话/后台回退。
+export function isProtectedDefaultModel(
+  provider: string,
+  model: ProviderModelRecord,
+  selections: DefaultModelSelections,
+): boolean {
+  const explicitlySelected = [
+    selections.agent,
+    selections.background,
+    selections.image,
+    selections.vision,
+  ].some((selection) =>
+    selection !== null
+    && selection.provider === provider
+    && selection.model === model.model_id
+  );
+  if (explicitlySelected) {
+    return true;
+  }
+  if (!model.is_default) {
+    return false;
+  }
+  return selections.agent === null || selections.background === null;
+}
+
 export function isDefaultModelDisable(
+  provider: string,
   model: ProviderModelRecord,
   enabled: boolean,
+  selections: DefaultModelSelections,
 ): boolean {
-  return model.is_default && !enabled;
+  return !enabled && isProtectedDefaultModel(provider, model, selections);
 }
 
 export function parseProviderOptions(

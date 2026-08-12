@@ -323,11 +323,9 @@ func modelLimitOrDefault(value *int, fallback *int) *int {
 
 func (u *modelUpdate) applyToExistingModel() error {
 	normalizeModelEntityIdentity(u.model, u.modelID)
-	if u.model.IsDefault && !u.input.Enabled && !u.input.IsDefault {
-		return fmt.Errorf("默认模型不能禁用: %s", u.modelID)
-	}
-	u.model.Enabled = u.input.Enabled || u.input.IsDefault || u.model.IsDefault
-	u.model.IsDefault = u.input.IsDefault || u.model.IsDefault
+	// 禁用默认模型必须显式降级（is_default=false）；保留默认标志的禁用请求维持启用。
+	u.model.IsDefault = u.input.IsDefault || u.model.IsDefault && u.input.Enabled
+	u.model.Enabled = u.input.Enabled || u.model.IsDefault
 	u.model.CapabilitiesOverrideJSON = encodeModelCapabilities(u.input.CapabilitiesOverride)
 	u.model.ContextWindow = u.input.ContextWindow
 	u.model.MaxOutputTokens = u.input.MaxOutputTokens
