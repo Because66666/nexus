@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added a `/visualize` Slash shortcut for invoking inline Generative UI without exposing its runtime prompt in the Composer.
+- Added streamed, interactive generative UI widgets that run inline in conversations with isolated host access and unrestricted network/CDN resources.
+- Added a README architecture overview and a user-facing architecture guide with standalone diagrams for deployment, layering, runtime boundaries, collaboration, agent turns, state ownership, security, and recovery.
+- Added desktop workspace file actions for system-aware opening, copying paths, and attaching files to the current chat.
+
+### Changed
+
+- Collapsed long user messages by default with controls to reveal or hide the full content.
+- Loaded Generative UI guidance by visualization type and exposed theme-aware chart colors for more reliable Nexus-native widgets.
+- Styled leading Slash commands consistently in the Composer and sent user messages without changing their raw text.
+- Removed the Generative UI frame and tool icon so inline widgets blend into conversation content.
+- Reorganized the open-source documentation around current architecture, operations, and maintainer contracts; removed the drifting hand-maintained API catalog and clarified the closed-source runtime boundary.
+- Restored the startup cat animation as a lightweight local animated WebP without reintroducing the Lottie runtime or WASM loading path.
+- Made HTML workspace previews fill the available pane and scroll like regular web pages instead of scaling a fixed-size canvas.
+- Sorted Agent directories with newly created Agents first while keeping the Nexus main Agent pinned.
+
+### Fixed
+
+- Reported generated-widget script failures in the conversation instead of silently leaving partial content, and tightened Canvas generation guidance to prevent blank renders.
+- Hid completed task plans as soon as a new conversation round starts instead of showing stale work until the next plan update.
+- Fixed Bearer-authenticated private Skill sources in deployments without `CONNECTOR_CREDENTIALS_KEY` by storing source tokens with the existing server-side plaintext credential model.
+- Fixed Linux-isolated runtimes failing to read host-generated MCP configuration files while keeping those files private.
+- Clarified workspace file selection by removing its redundant blue bar, keeping active files distinct from hover, and leaving folders visually neutral.
+
 ## [0.1.35] - 2026-08-10
 
 ### Added
